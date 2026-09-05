@@ -12,7 +12,7 @@ use crate::hooks::Hooks;
 use crate::browser_registry::{BrowserId, BrowserMetadata, BrowserType};
 use crate::registry::Registry;
 use crate::window_registry::{WindowId, WindowMetadata};
-use crate::window::{Placement, open_browser_window};
+use crate::window::{Placement, WindowIdentity, open_browser_window};
 use kurogane_layout::{DetectError, DiscoveryMode, detect_cef_root, validate_cef_runtime, profile_dir};
 use crate::ipc::IpcRouter;
 use crate::ipc::transport::message::RendererSandbox;
@@ -1159,7 +1159,12 @@ impl AppInstance {
             },
             show_state: options.show_state.into(),
         };
-        open_browser_window(&self.handle, &options.url, placement)
+        open_browser_window(
+            &self.handle,
+            &options.url,
+            placement,
+            WindowIdentity::default(),
+        )
     }
 
     /// Takes ownership and blocks on the CEF message loop.

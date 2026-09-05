@@ -50,7 +50,13 @@ wrap_browser_process_handler! {
                 show_state: ShowState::NORMAL,
             };
             // A CEF callback has nowhere to return the error
-            if let Err(error) = open_browser_window(&self.app, &self.spec.start_url, placement) {
+            let opened = open_browser_window(
+                &self.app,
+                &self.spec.start_url,
+                placement,
+                self.spec.window_identity.clone(),
+            );
+            if let Err(error) = opened {
                 error!("no window will appear: {error}");
             }
         }
