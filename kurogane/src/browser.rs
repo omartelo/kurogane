@@ -141,6 +141,28 @@ wrap_browser_process_handler! {
             self.default_client_stored.borrow().clone()
         }
 
+        // A second launch on this profile: CEF's process singleton forwards
+        // its command line here instead of letting it start. Unhandled, CEF
+        // opens a Chrome-style browser for it that owns no window of ours,
+        // and the app outlives its last window by that browser. The window
+        // the user already has is what they asked for.
+        fn on_already_running_app_relaunch(
+            &self,
+            _command_line: Option<&mut CommandLine>,
+            _current_directory: Option<&CefString>,
+        ) -> ::std::os::raw::c_int {
+            debug!("on_already_running_app_relaunch: raising the existing windows");
+            let reg = self.services.window_registry.lock().unwrap();
+            for (_, state) in reg.iter() {
+                if state.window.is_minimized() != 0 {
+                    state.window.restore();
+                }
+                state.window.show();
+                state.window.activate();
+            }
+            1
+        }
+
         fn on_schedule_message_pump_work(&self, delay_ms: i64) {
             if let Some(ref scheduler) = self.spec.scheduler {
                 let request = if delay_ms <= 0 {
