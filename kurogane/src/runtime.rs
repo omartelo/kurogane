@@ -89,8 +89,15 @@ fn build_settings(
     #[cfg(not(target_os = "macos"))]
     let cef_root_str = layout.cef_root.to_string_lossy();
 
-    // Sandbox is disabled on all platforms
-    let no_sandbox: i32 = 1;
+    // The Windows sandbox needs cef_sandbox linked into the executable and
+    // the macOS one a helper app that initialises it; neither is wired, so
+    // those two run without. Linux needs nothing of the binary: Chromium
+    // confines its subprocesses in a user namespace, or through the setuid
+    // helper beside the executable where namespaces are denied. A window
+    // whose command line disables the sandbox carries Chrome's "stability
+    // and security will suffer" bar on every launch; the host that has to
+    // (no namespaces, no helper) passes --no-sandbox itself.
+    let no_sandbox: i32 = if cfg!(target_os = "linux") { 0 } else { 1 };
 
     #[cfg(not(target_os = "macos"))]
     {
