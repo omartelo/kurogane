@@ -1167,6 +1167,7 @@ impl AppInstance {
             &options.url,
             placement,
             WindowIdentity::default(),
+            Vec::new(),
         )
     }
 
@@ -1502,7 +1503,13 @@ mod tests {
             show_state: ShowState::NORMAL,
         };
         assert!(matches!(
-            open_browser_window(&handle, "app://app/index.html", placement),
+            open_browser_window(
+                &handle,
+                "app://app/index.html",
+                placement,
+                WindowIdentity::default(),
+                Vec::new(),
+            ),
             Err(RuntimeError::ShuttingDown)
         ));
     }

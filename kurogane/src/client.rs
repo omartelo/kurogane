@@ -15,7 +15,7 @@ use crate::keys::{self, KeyDecision, KeyPress};
 use crate::navigation::{self, NavigationRequest};
 use crate::new_window::{self, NewWindowRequest};
 use crate::permissions::{self, Answer as PermissionAnswer, Pending, PermissionRequest};
-use crate::window::{Placement, PopupGeometry, open_browser_window};
+use crate::window::{Placement, PopupGeometry, WindowIdentity, open_browser_window};
 
 /// A load the application made itself, through CreateBrowser, LoadURL or
 /// LoadRequest, and the redirects it leads to (cef_types.h)
@@ -389,7 +389,14 @@ wrap_request_handler! {
                         bounds: Rect::default(),
                         show_state: ShowState::NORMAL,
                     };
-                    if let Err(error) = open_browser_window(&self.app, request.url(), placement) {
+                    let opened = open_browser_window(
+                        &self.app,
+                        request.url(),
+                        placement,
+                        WindowIdentity::default(),
+                        Vec::new(),
+                    );
+                    if let Err(error) = opened {
                         warn!("no window for {}: {error}", request.url());
                     }
                 }

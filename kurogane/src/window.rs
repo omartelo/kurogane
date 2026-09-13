@@ -5,12 +5,14 @@
 
 use cef::*;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use tracing::debug;
+use crate::app::ClientAppBrowserDelegate;
 use crate::browser_registry::{BrowserId, BrowserType};
 use crate::client::KuroganeClient;
 use crate::error::RuntimeError;
-use crate::runtime::AppHandle;
+use crate::runtime::{AppHandle, BrowserBounds, WindowState};
 use crate::window_registry::WindowId;
 
 /// Size and position requested by a page for a popup window.
@@ -166,6 +168,9 @@ wrap_window_delegate! {
         browser_id: Option<BrowserId>,
         placement: Placement,
         identity: WindowIdentity,
+        // Told when the window closes; empty for every window but the one
+        // Kurogane opens itself
+        closing: Vec<Arc<dyn ClientAppBrowserDelegate>>,
     }
 
     impl ViewDelegate {
@@ -227,6 +232,29 @@ wrap_window_delegate! {
             match self.placement {
                 Placement::Main { .. } => debug!("Window shown"),
                 Placement::Popup(_) => debug!("Popup window shown at {:?}", window.bounds()),
+            }
+        }
+
+        fn on_window_closing(&self, window: Option<&mut Window>) {
+            let Some(window) = window else {
+                return;
+            };
+            let rect = window.bounds_in_screen();
+            let bounds = BrowserBounds {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+            };
+            let state = if window.is_maximized() == 1 {
+                WindowState::Maximized
+            } else if window.is_minimized() == 1 {
+                WindowState::Minimized
+            } else {
+                WindowState::Normal
+            };
+            for delegate in &self.closing {
+                delegate.on_window_closing(bounds, state);
             }
         }
 
@@ -372,6 +400,7 @@ wrap_browser_view_delegate! {
                     browser_id,
                     Placement::Popup(requested),
                     WindowIdentity::default(),
+                    Vec::new(),
                 );
                 if window_create_top_level(Some(&mut delegate)).is_some() {
                     debug!("[BrowserViewDelegate] popup window created");
@@ -385,7 +414,8 @@ wrap_browser_view_delegate! {
 }
 
 /// Opens `url` in a new browser, in a new top-level window at `placement`,
-/// which the window manager sees as `identity`.
+/// which the window manager sees as `identity` and whose closing is told to
+/// `closing`.
 /// UI thread, where CEF creates browsers and windows.
 ///
 /// The browser is created when the window adds its view
@@ -396,6 +426,7 @@ pub(crate) fn open_browser_window(
     url: &str,
     placement: Placement,
     identity: WindowIdentity,
+    closing: Vec<Arc<dyn ClientAppBrowserDelegate>>,
 ) -> Result<WindowId, RuntimeError> {
     if app.is_ending() {
         return Err(RuntimeError::ShuttingDown);
@@ -426,6 +457,7 @@ pub(crate) fn open_browser_window(
         None,
         placement,
         identity,
+        closing,
     );
     window_create_top_level(Some(&mut delegate)).ok_or(RuntimeError::WindowCreationFailed)?;
     debug!("Top-level window created");
