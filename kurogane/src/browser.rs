@@ -110,6 +110,11 @@ wrap_browser_process_handler! {
 
             debug!("BrowserView created");
 
+            let (bounds, show_state) = self.spec.delegates.iter()
+                .find_map(|d| d.initial_window_geometry())
+                .map(|(b, state)| (Rect { x: b.x, y: b.y, width: b.width, height: b.height }, state.into()))
+                .unwrap_or((Rect::default(), ShowState::NORMAL));
+
             // Create delegate
             let window_id = {
                 let mut reg = self.services.window_registry.lock().unwrap();
@@ -120,10 +125,10 @@ wrap_browser_process_handler! {
                 window_id,
                 browser_view,
                 self.services.window_registry.clone(),
-                Rect::default(),
-                ShowState::NORMAL,
+                (bounds, show_state),
                 is_closing,
                 self.spec.window_identity.clone(),
+                self.spec.delegates.clone(),
             );
 
             // Create window

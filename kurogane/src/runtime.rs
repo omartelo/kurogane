@@ -857,15 +857,18 @@ impl AppInstance {
             window_id,
             browser_view,
             self.handle.inner.services.window_registry.clone(),
-            Rect {
-                x: options.bounds.x,
-                y: options.bounds.y,
-                width: options.bounds.width,
-                height: options.bounds.height,
-            },
-            options.show_state.into(),
+            (
+                Rect {
+                    x: options.bounds.x,
+                    y: options.bounds.y,
+                    width: options.bounds.width,
+                    height: options.bounds.height,
+                },
+                options.show_state.into(),
+            ),
             is_closing,
             WindowIdentity::default(),
+            Vec::new(),
         );
 
         window_create_top_level(Some(&mut delegate)).ok_or(RuntimeError::WindowCreationFailed)?;
