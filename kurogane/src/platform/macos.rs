@@ -8,9 +8,13 @@ use kurogane_layout::detect_cef_root_with_version;
 use objc2::{
     ClassType, MainThreadMarker, MainThreadOnly, define_class, msg_send,
     rc::Retained,
-    runtime::{AnyObject, Bool, NSObject, NSObjectProtocol, ProtocolObject},
+    runtime::{AnyObject, Bool, NSObject, NSObjectProtocol, ProtocolObject, Sel},
+    sel,
 };
-use objc2_app_kit::{NSApp, NSApplication, NSApplicationDelegate, NSApplicationTerminateReply};
+use objc2_app_kit::{
+    NSApp, NSApplication, NSApplicationDelegate, NSApplicationTerminateReply, NSMenu, NSMenuItem,
+};
+use objc2_foundation::NSString;
 
 use crate::error::RuntimeError;
 use crate::platform::macos::application::SimpleApplication;
@@ -101,6 +105,60 @@ pub fn setup_app_delegate() {
     // NSApplication does not retain its delegate. Keep the retained handle alive
     // until process exit so it outlives CEF initialization
     std::mem::forget(delegate);
+
+    install_main_menu(mtm, &app);
+}
+
+/// Installs the application and Edit menus.
+///
+/// AppKit routes Command key equivalents through the main menu, so without one
+/// Cmd+C, Cmd+V, Cmd+A and Cmd+Q do nothing in the window. The Edit actions go
+/// to the first responder, which is Chromium's web view.
+fn install_main_menu(mtm: MainThreadMarker, app: &NSApplication) {
+    let bar = NSMenu::new(mtm);
+
+    // AppKit titles the first menu with the application name whatever it is given.
+    let app_menu = menu(mtm, "");
+    add_item(&app_menu, "Hide", sel!(hide:), "h");
+    add_item(&app_menu, "Quit", sel!(terminate:), "q");
+
+    // An uppercase key equivalent is the letter with Shift held.
+    let edit_menu = menu(mtm, "Edit");
+    add_item(&edit_menu, "Undo", sel!(undo:), "z");
+    add_item(&edit_menu, "Redo", sel!(redo:), "Z");
+    add_item(&edit_menu, "Cut", sel!(cut:), "x");
+    add_item(&edit_menu, "Copy", sel!(copy:), "c");
+    add_item(&edit_menu, "Paste", sel!(paste:), "v");
+    add_item(
+        &edit_menu,
+        "Paste and Match Style",
+        sel!(pasteAndMatchStyle:),
+        "V",
+    );
+    add_item(&edit_menu, "Select All", sel!(selectAll:), "a");
+
+    for submenu in [&app_menu, &edit_menu] {
+        let item = NSMenuItem::new(mtm);
+        item.setSubmenu(Some(submenu));
+        bar.addItem(&item);
+    }
+    app.setMainMenu(Some(&bar));
+}
+
+fn menu(mtm: MainThreadMarker, title: &str) -> Retained<NSMenu> {
+    NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str(title))
+}
+
+fn add_item(menu: &NSMenu, title: &str, action: Sel, key: &str) {
+    // SAFETY: every action is a standard NSResponder selector sent to the first
+    // responder, which ignores the ones it does not implement.
+    unsafe {
+        menu.addItemWithTitle_action_keyEquivalent(
+            &NSString::from_str(title),
+            Some(action),
+            &NSString::from_str(key),
+        );
+    }
 }
 
 define_class! {
